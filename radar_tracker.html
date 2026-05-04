@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTX Radar Tracking System — Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #00ff88;
+    --green-dim: #00cc6a;
+    --green-faint: rgba(0,255,136,0.08);
+    --green-border: rgba(0,255,136,0.2);
+    --amber: #ffb020;
+    --red: #ff4444;
+    --blue: #4ab0ff;
+    --bg: #070d0a;
+    --bg2: #0c1510;
+    --bg3: #111c15;
+    --text: #c8ffe0;
+    --text-dim: #5a8a70;
+    --border: rgba(0,255,136,0.15);
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui: 'Rajdhani', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .logo-block { display: flex; align-items: center; gap: 14px; }
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--green);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .logo-icon::after {
+    content: '';
+    position: absolute;
+    width: 18px; height: 1.5px;
+    background: var(--green);
+    transform-origin: left center;
+    left: 50%; top: 50%;
+    transform: translate(-2px, -50%);
+    animation: spin 2s linear infinite;
+  }
+  @keyframes spin { to { transform: translate(-2px,-50%) rotate(360deg); } }
+
+  .logo-text { font-family: var(--font-mono); font-size: 13px; color: var(--green); }
+  .logo-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+
+  .header-status { display: flex; gap: 24px; align-items: center; }
+  .status-item { text-align: right; }
+  .status-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; font-family: var(--font-mono); }
+  .status-val { font-size: 14px; font-family: var(--font-mono); color: var(--green); }
+  .blink { animation: blink 1.2s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .main { display: flex; gap: 0; height: calc(100vh - 57px); }
+
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    margin-bottom: 12px;
+  }
+
+  .ctrl-row {
+    margin-bottom: 14px;
+  }
+  .ctrl-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+  }
+  .ctrl-val { color: var(--green); }
+
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--bg3);
+    border-radius: 2px;
+    outline: none;
+    border: 1px solid var(--border);
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--green);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--green);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--green);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 6px var(--green);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    margin-bottom: 10px;
+  }
+  .toggle {
+    width: 32px; height: 16px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: rgba(0,255,136,0.2); border-color: var(--green); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    top: 2px; left: 2px;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle.on::after { transform: translateX(16px); background: var(--green); box-shadow: 0 0 4px var(--green); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 4px; }
+  button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  button:hover { border-color: var(--green); color: var(--green); background: var(--green-faint); }
+  button.active { border-color: var(--green); color: var(--green); }
+
+  .track-list { flex: 1; overflow-y: auto; }
+  .track-entry {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: default;
+    transition: background 0.1s;
+  }
+  .track-entry:hover { background: var(--green-faint); }
+  .track-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .track-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .track-id { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+  .track-status {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-left: auto;
+    letter-spacing: 1px;
+  }
+  .track-data { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); line-height: 1.7; }
+  .track-data span { color: var(--text); }
+
+  .radar-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+  }
+
+  .radar-container { position: relative; }
+
+  canvas { display: block; }
+  #sweepCanvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+  .corner { position: absolute; width: 12px; height: 12px; }
+  .corner-tl { top: -2px; left: -2px; border-top: 2px solid var(--green); border-left: 2px solid var(--green); }
+  .corner-tr { top: -2px; right: -2px; border-top: 2px solid var(--green); border-right: 2px solid var(--green); }
+  .corner-bl { bottom: -2px; left: -2px; border-bottom: 2px solid var(--green); border-left: 2px solid var(--green); }
+  .corner-br { bottom: -2px; right: -2px; border-bottom: 2px solid var(--green); border-right: 2px solid var(--green); }
+
+  .right-panel {
+    width: 200px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .metric-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 2px;
+  }
+  .metric-label { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px; }
+  .metric-val { font-size: 22px; font-family: var(--font-mono); color: var(--green); line-height: 1; }
+  .metric-unit { font-size: 11px; color: var(--text-dim); margin-top: 2px; font-family: var(--font-mono); }
+
+  .alert-box {
+    background: rgba(255,180,0,0.06);
+    border: 1px solid rgba(255,180,0,0.25);
+    padding: 10px 12px;
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--amber);
+    margin-top: auto;
+  }
+  .alert-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; opacity: 0.7; }
+  .alert-log { line-height: 1.9; }
+
+  footer {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-block">
+    <div class="logo-icon"></div>
+    <div>
+      <div class="logo-text">RTX-RADAR-SIM v2.6</div>
+      <div class="logo-sub">Multi-Target Tracking System</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="status-item">
+      <div class="status-label">System</div>
+      <div class="status-val blink">OPERATIONAL</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">UTC</div>
+      <div class="status-val" id="clock">--:--:--</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">Frame</div>
+      <div class="status-val" id="frameCount">0</div>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-label">Parameters</div>
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Targets</span><span class="ctrl-val" id="valTargets">4</span></div>
+        <input type="range" id="ctrlTargets" min="1" max="8" step="1" value="4">
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Noise σ (km)</span><span class="ctrl-val" id="valNoise">8</span></div>
+        <input type="range" id="ctrlNoise" min="1" max="20" step="1" value="8">
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-label"><span>Speed mult</span><span class="ctrl-val" id="valSpeed">1.0×</span></div>
+        <input type="range" id="ctrlSpeed" min="0.2" max="3" step="0.1" value="1">
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Display</div>
+      <div class="toggle-row">
+        <span>Kalman track</span>
+        <div class="toggle on" id="togKalman"></div>
+      </div>
+      <div class="toggle-row">
+        <span>True position</span>
+        <div class="toggle on" id="togTrue"></div>
+      </div>
+      <div class="toggle-row">
+        <span>History trail</span>
+        <div class="toggle on" id="togTrail"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Measurements</span>
+        <div class="toggle on" id="togMeas"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Controls</div>
+      <div class="btn-row">
+        <button id="btnPause">Pause</button>
+        <button id="btnReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="section-label" style="padding: 14px 16px 6px; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); font-family:var(--font-mono);">Track Table</div>
+    <div class="track-list" id="trackList"></div>
+  </div>
+
+  <div class="radar-area">
+    <div class="radar-container" id="radarContainer">
+      <div class="corner corner-tl"></div>
+      <div class="corner corner-tr"></div>
+      <div class="corner corner-bl"></div>
+      <div class="corner corner-br"></div>
+      <canvas id="radarCanvas"></canvas>
+      <canvas id="sweepCanvas"></canvas>
+    </div>
+    <footer>Kalman-filtered multi-target tracking · Python demo build · RTX recruiting event 2026</footer>
+  </div>
+
+  <div class="right-panel">
+    <div class="section-label" style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);font-family:var(--font-mono);">System Metrics</div>
+    <div class="metric-card">
+      <div class="metric-label">Targets</div>
+      <div class="metric-val" id="mTargets">4</div>
+      <div class="metric-unit">tracked</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Scan rate</div>
+      <div class="metric-val" id="mScan">2.0</div>
+      <div class="metric-unit">Hz</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Noise σ</div>
+      <div class="metric-val" id="mNoise">8</div>
+      <div class="metric-unit">km RMS error</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Range</div>
+      <div class="metric-val">100</div>
+      <div class="metric-unit">km radius</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Filter</div>
+      <div class="metric-val" style="font-size:14px;margin-top:2px;">Kalman</div>
+      <div class="metric-unit">recursive Bayesian</div>
+    </div>
+    <div class="alert-box">
+      <div class="alert-title">Event log</div>
+      <div class="alert-log" id="alertLog">System nominal<br>Sweep active<br>Tracks locked</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#00ff88','#4ab0ff','#ffb020','#ff6b6b','#c084fc','#fb923c','#34d399','#f472b6'];
+const MAX_RANGE = 100;
+let R, CX, CY, W;
+
+const radarCanvas = document.getElementById('radarCanvas');
+const sweepCanvas = document.getElementById('sweepCanvas');
+const radarCtx = radarCanvas.getContext('2d');
+const sweepCtx = sweepCanvas.getContext('2d');
+
+function resize() {
+  const avail = Math.min(window.innerHeight - 57 - 60, window.innerWidth - 240 - 200 - 60);
+  W = Math.max(300, Math.min(500, avail));
+  R = W / 2 - 10; CX = W / 2; CY = W / 2;
+  radarCanvas.width = sweepCanvas.width = W;
+  radarCanvas.height = sweepCanvas.height = W;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function toCanvas(x, y) {
+  return { cx: CX + (x / MAX_RANGE) * R, cy: CY - (y / MAX_RANGE) * R };
+}
+
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+class KalmanFilter {
+  constructor(x, y, vx, vy) {
+    this.state = [x, y, vx, vy];
+    this.P = [[100,0,0,0],[0,100,0,0],[0,0,10,0],[0,0,0,10]];
+    this.Q = 0.5; this.Rn = 64;
+  }
+  predict(dt) {
+    const [x,y,vx,vy] = this.state;
+    this.state = [x+vx*dt, y+vy*dt, vx, vy];
+    for (let i=0;i<4;i++) this.P[i][i] += (i<2?this.Q*dt*dt:this.Q*dt);
+  }
+  update(mx, my) {
+    const [px,py] = this.state;
+    const K0 = this.P[0][0]/(this.P[0][0]+this.Rn);
+    const K1 = this.P[1][1]/(this.P[1][1]+this.Rn);
+    this.state[0] += K0*(mx-px); this.state[1] += K1*(my-py);
+    this.state[2] += 0.3*K0*(mx-px); this.state[3] += 0.3*K1*(my-py);
+    this.P[0][0] *= (1-K0); this.P[1][1] *= (1-K1);
+  }
+  setNoise(s) { this.Rn = s*s; }
+}
+
+class Target {
+  constructor(id) {
+    this.id = id; this.color = COLORS[id % COLORS.length];
+    this.label = 'TGT-' + String(id+1).padStart(2,'0');
+    this.reset();
+  }
+  reset() {
+    const angle = Math.random()*Math.PI*2, r = 25+Math.random()*55;
+    this.x = Math.cos(angle)*r; this.y = Math.sin(angle)*r;
+    const speed = 0.6+Math.random()*1.4, dir = Math.random()*Math.PI*2;
+    this.vx = Math.cos(dir)*speed; this.vy = Math.sin(dir)*speed;
+    this.history = []; this.measurements = [];
+    this.kf = new KalmanFilter(this.x, this.y, this.vx, this.vy);
+    this.dist = 0; this.spd = Math.sqrt(this.vx*this.vx+this.vy*this.vy);
+    this.heading = Math.atan2(this.vy, this.vx)*180/Math.PI;
+  }
+  update(dt, sm) {
+    this.x += this.vx*dt*sm; this.y += this.vy*dt*sm;
+    const d = Math.sqrt(this.x*this.x+this.y*this.y);
+    if (d > MAX_RANGE*0.9) {
+      const nx = -this.x/d, ny = -this.y/d;
+      const dot = this.vx*nx+this.vy*ny;
+      this.vx -= 2*dot*nx; this.vy -= 2*dot*ny;
+      this.x += this.vx*dt*sm*2; this.y += this.vy*dt*sm*2;
+    }
+    this.history.push({x:this.x,y:this.y});
+    if (this.history.length>80) this.history.shift();
+    this.dist = Math.sqrt(this.x*this.x+this.y*this.y);
+    this.spd = Math.sqrt(this.vx*this.vx+this.vy*this.vy)*sm;
+    this.heading = (Math.atan2(this.vy, this.vx)*180/Math.PI+360)%360;
+    this.kf.predict(dt*sm);
+  }
+  measure(sigma) {
+    const mx = this.x+randn()*sigma, my = this.y+randn()*sigma;
+    this.measurements.push({x:mx,y:my});
+    if (this.measurements.length>10) this.measurements.shift();
+    this.kf.update(mx, my);
+  }
+}
+
+let targets = [], sweepAngle = 0, paused = false, lastTime = null, frameCount = 0;
+let noiseSigma = 8, speedMult = 1, numTargets = 4;
+let showKalman = true, showTrue = true, showTrail = true, showMeas = true;
+const SCAN_PERIOD = 0.5;
+let scanTimer = 0;
+const alertMessages = ['System nominal','Sweep active','Tracks locked'];
+
+function buildTargets(n) {
+  while (targets.length < n) targets.push(new Target(targets.length));
+}
+buildTargets(8);
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.getUTCHours().toString().padStart(2,'0') + ':' +
+    now.getUTCMinutes().toString().padStart(2,'0') + ':' +
+    now.getUTCSeconds().toString().padStart(2,'0');
+}
+setInterval(updateClock, 1000); updateClock();
+
+function drawBase() {
+  radarCtx.clearRect(0,0,W,W);
+  radarCtx.fillStyle = '#070d0a';
+  radarCtx.beginPath();
+  radarCtx.arc(CX,CY,R,0,Math.PI*2);
+  radarCtx.fill();
+
+  radarCtx.strokeStyle = 'rgba(0,255,136,0.07)';
+  radarCtx.lineWidth = 0.5;
+  [0.25,0.5,0.75,1].forEach(f => {
+    radarCtx.beginPath();
+    radarCtx.arc(CX,CY,R*f,0,Math.PI*2);
+    radarCtx.stroke();
+    radarCtx.fillStyle = 'rgba(0,255,136,0.3)';
+    radarCtx.font = '10px "Share Tech Mono"';
+    radarCtx.fillText((MAX_RANGE*f).toFixed(0)+'km', CX+4, CY-R*f+12);
+  });
+
+  for (let a=0;a<360;a+=30) {
+    const rad = a*Math.PI/180;
+    radarCtx.beginPath();
+    radarCtx.strokeStyle = a%90===0 ? 'rgba(0,255,136,0.12)' : 'rgba(0,255,136,0.05)';
+    radarCtx.moveTo(CX,CY);
+    radarCtx.lineTo(CX+Math.cos(rad)*R, CY+Math.sin(rad)*R);
+    radarCtx.stroke();
+  }
+
+  const compass = {0:'E',90:'S',180:'W',270:'N'};
+  radarCtx.font = '11px "Share Tech Mono"';
+  Object.entries(compass).forEach(([d,l]) => {
+    const a = parseFloat(d)*Math.PI/180;
+    radarCtx.fillStyle = 'rgba(0,255,136,0.5)';
+    radarCtx.fillText(l, CX+Math.cos(a)*(R-14)-4, CY+Math.sin(a)*(R-14)+4);
+  });
+
+  radarCtx.strokeStyle = 'rgba(0,255,136,0.3)';
+  radarCtx.lineWidth = 1;
+  radarCtx.beginPath();
+  radarCtx.arc(CX,CY,R,0,Math.PI*2);
+  radarCtx.stroke();
+
+  radarCtx.fillStyle = '#00ff88';
+  radarCtx.beginPath();
+  radarCtx.arc(CX,CY,3,0,Math.PI*2);
+  radarCtx.fill();
+}
+
+function drawTargets() {
+  targets.slice(0, numTargets).forEach(t => {
+    if (showTrail && t.history.length > 1) {
+      for (let i=1;i<t.history.length;i++) {
+        const alpha = (i/t.history.length)*0.5;
+        const hex = Math.round(alpha*255).toString(16).padStart(2,'0');
+        const p0 = toCanvas(t.history[i-1].x, t.history[i-1].y);
+        const p1 = toCanvas(t.history[i].x, t.history[i].y);
+        radarCtx.strokeStyle = t.color + hex;
+        radarCtx.lineWidth = 1;
+        radarCtx.beginPath();
+        radarCtx.moveTo(p0.cx, p0.cy);
+        radarCtx.lineTo(p1.cx, p1.cy);
+        radarCtx.stroke();
+      }
+    }
+
+    if (showMeas) {
+      t.measurements.forEach((m,i) => {
+        const alpha = ((i+1)/t.measurements.length)*0.55;
+        const hex = Math.round(alpha*255).toString(16).padStart(2,'0');
+        const {cx,cy} = toCanvas(m.x,m.y);
+        radarCtx.fillStyle = t.color + hex;
+        radarCtx.beginPath();
+        radarCtx.arc(cx,cy,3.5,0,Math.PI*2);
+        radarCtx.fill();
+        radarCtx.strokeStyle = t.color + '33';
+        radarCtx.lineWidth = 0.5;
+        radarCtx.stroke();
+      });
+    }
+
+    if (showKalman && t.kf) {
+      const [kx,ky] = t.kf.state;
+      const {cx,cy} = toCanvas(kx,ky);
+      radarCtx.strokeStyle = t.color + 'cc';
+      radarCtx.lineWidth = 1.5;
+      radarCtx.setLineDash([4,3]);
+      const ekSize = 10;
+      radarCtx.beginPath();
+      radarCtx.arc(cx,cy,ekSize,0,Math.PI*2);
+      radarCtx.stroke();
+      radarCtx.setLineDash([]);
+      const vscale = 6;
+      radarCtx.strokeStyle = t.color + '80';
+      radarCtx.lineWidth = 1;
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx,cy);
+      radarCtx.lineTo(cx+(t.kf.state[2]/MAX_RANGE)*R*vscale, cy-(t.kf.state[3]/MAX_RANGE)*R*vscale);
+      radarCtx.stroke();
+    }
+
+    if (showTrue) {
+      const {cx,cy} = toCanvas(t.x,t.y);
+      radarCtx.fillStyle = t.color;
+      radarCtx.shadowColor = t.color;
+      radarCtx.shadowBlur = 8;
+      radarCtx.beginPath();
+      radarCtx.arc(cx,cy,5,0,Math.PI*2);
+      radarCtx.fill();
+      radarCtx.shadowBlur = 0;
+      radarCtx.fillStyle = 'rgba(255,255,255,0.85)';
+      radarCtx.font = '9px "Share Tech Mono"';
+      radarCtx.fillText(t.label, cx+8, cy-4);
+    }
+  });
+}
+
+function drawSweep() {
+  sweepCtx.clearRect(0,0,W,W);
+  sweepCtx.save();
+  sweepCtx.beginPath();
+  sweepCtx.arc(CX,CY,R,0,Math.PI*2);
+  sweepCtx.clip();
+  for (let i=0;i<50;i++) {
+    const a0 = sweepAngle-(i/50)*Math.PI*0.85;
+    const a1 = sweepAngle-((i+1)/50)*Math.PI*0.85;
+    const alpha = (1-i/50)*0.15;
+    sweepCtx.beginPath();
+    sweepCtx.moveTo(CX,CY);
+    sweepCtx.arc(CX,CY,R,a0,a1,false);
+    sweepCtx.closePath();
+    sweepCtx.fillStyle = `rgba(0,255,136,${alpha})`;
+    sweepCtx.fill();
+  }
+  sweepCtx.strokeStyle = 'rgba(0,255,136,0.8)';
+  sweepCtx.lineWidth = 1.5;
+  sweepCtx.shadowColor = '#00ff88';
+  sweepCtx.shadowBlur = 4;
+  sweepCtx.beginPath();
+  sweepCtx.moveTo(CX,CY);
+  sweepCtx.lineTo(CX+Math.cos(sweepAngle)*R, CY+Math.sin(sweepAngle)*R);
+  sweepCtx.stroke();
+  sweepCtx.shadowBlur = 0;
+  sweepCtx.restore();
+}
+
+function updateTrackList() {
+  document.getElementById('trackList').innerHTML =
+    targets.slice(0,numTargets).map(t => `
+      <div class="track-entry">
+        <div class="track-header">
+          <div class="track-dot" style="background:${t.color};box-shadow:0 0 4px ${t.color}"></div>
+          <span class="track-id" style="color:${t.color}">${t.label}</span>
+          <span class="track-status" style="background:${t.color}22;color:${t.color};border:1px solid ${t.color}44">LOCK</span>
+        </div>
+        <div class="track-data">
+          RNG: <span>${t.dist.toFixed(1)} km</span><br>
+          SPD: <span>${(t.spd*10).toFixed(1)} km/s</span><br>
+          HDG: <span>${t.heading.toFixed(0)}°</span>
+        </div>
+      </div>`).join('');
+}
+
+function addAlert(msg) {
+  alertMessages.push(msg);
+  if (alertMessages.length > 5) alertMessages.shift();
+  document.getElementById('alertLog').innerHTML = alertMessages.join('<br>');
+}
+
+function frame(ts) {
+  if (!lastTime) lastTime = ts;
+  const dt = Math.min((ts-lastTime)/1000, 0.05);
+  lastTime = ts; frameCount++;
+  document.getElementById('frameCount').textContent = frameCount;
+
+  if (!paused) {
+    targets.slice(0,numTargets).forEach(t => t.update(dt, speedMult));
+    scanTimer += dt;
+    if (scanTimer >= SCAN_PERIOD) {
+      scanTimer = 0;
+      targets.slice(0,numTargets).forEach(t => { t.kf.setNoise(noiseSigma); t.measure(noiseSigma); });
+      updateTrackList();
+    }
+    sweepAngle += dt*speedMult*Math.PI*2/SCAN_PERIOD;
+  }
+
+  drawBase();
+  drawTargets();
+  drawSweep();
+  requestAnimationFrame(frame);
+}
+
+document.getElementById('ctrlTargets').addEventListener('input', e => {
+  numTargets = +e.target.value;
+  document.getElementById('valTargets').textContent = numTargets;
+  document.getElementById('mTargets').textContent = numTargets;
+  addAlert('Tracking ' + numTargets + ' targets');
+});
+document.getElementById('ctrlNoise').addEventListener('input', e => {
+  noiseSigma = +e.target.value;
+  document.getElementById('valNoise').textContent = noiseSigma;
+  document.getElementById('mNoise').textContent = noiseSigma;
+});
+document.getElementById('ctrlSpeed').addEventListener('input', e => {
+  speedMult = parseFloat(e.target.value);
+  document.getElementById('valSpeed').textContent = speedMult.toFixed(1)+'×';
+  document.getElementById('mScan').textContent = (2*speedMult).toFixed(1);
+});
+
+function makeToggle(id, onToggle) {
+  const el = document.getElementById(id);
+  el.addEventListener('click', () => {
+    el.classList.toggle('on');
+    onToggle(el.classList.contains('on'));
+  });
+}
+makeToggle('togKalman', v => showKalman = v);
+makeToggle('togTrue', v => showTrue = v);
+makeToggle('togTrail', v => showTrail = v);
+makeToggle('togMeas', v => showMeas = v);
+
+document.getElementById('btnPause').addEventListener('click', e => {
+  paused = !paused;
+  e.target.textContent = paused ? 'Resume' : 'Pause';
+  e.target.classList.toggle('active', paused);
+  addAlert(paused ? 'Simulation paused' : 'Simulation resumed');
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  targets = [];
+  buildTargets(8);
+  sweepAngle = 0; frameCount = 0;
+  addAlert('System reset');
+});
+
+updateTrackList();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
